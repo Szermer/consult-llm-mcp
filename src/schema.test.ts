@@ -44,6 +44,38 @@ describe('ConsultLlmArgs', () => {
     }
   })
 
+  it.each(['HEAD~3', 'origin/main', 'main...feature', 'deadbeef'])(
+    'accepts git_diff base_ref %s',
+    (base_ref) => {
+      const result = ConsultLlmArgs.safeParse({
+        prompt: 'test',
+        git_diff: { files: ['a.ts'], base_ref },
+      })
+      expect(result.success).toBe(true)
+    },
+  )
+
+  it.each([
+    '--output=/tmp/pwned',
+    '-p',
+    'HEAD; touch /tmp/pwned',
+    '$(touch /tmp/pwned)',
+  ])('rejects unsafe git_diff base_ref %j', (base_ref) => {
+    const result = ConsultLlmArgs.safeParse({
+      prompt: 'test',
+      git_diff: { files: ['a.ts'], base_ref },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects git_diff files containing NUL bytes', () => {
+    const result = ConsultLlmArgs.safeParse({
+      prompt: 'test',
+      git_diff: { files: ['a.ts\0b'] },
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('defaults model to a valid enabled model when omitted', () => {
     const parsed = ConsultLlmArgs.parse({ prompt: 'hello world' })
     expect(parsed.model).toBeDefined()

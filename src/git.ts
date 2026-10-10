@@ -1,4 +1,5 @@
-import { execSync } from 'child_process'
+import { execFileSync } from 'node:child_process'
+import { hasNulByte, isSafeGitRef } from './git-validation.js'
 
 export function generateGitDiff(
   repoPath: string | undefined,
@@ -10,8 +11,16 @@ export function generateGitDiff(
     if (files.length === 0) {
       throw new Error('No files specified for git diff')
     }
+    if (!isSafeGitRef(baseRef)) {
+      throw new Error(`Invalid base_ref: ${JSON.stringify(baseRef)}`)
+    }
+    if (files.some(hasNulByte) || hasNulByte(repo)) {
+      throw new Error('Paths must not contain NUL bytes')
+    }
 
-    return execSync(`git diff ${baseRef} -- ${files.join(' ')}`, {
+    // No shell: arguments are passed to git verbatim. Files follow '--', so
+    // git treats them as pathspecs even if they start with '-'.
+    return execFileSync('git', ['diff', baseRef, '--', ...files], {
       cwd: repo,
       encoding: 'utf-8',
       maxBuffer: 1024 * 1024,
