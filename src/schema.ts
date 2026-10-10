@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { ALL_MODELS } from './models.js'
 import { SupportedChatModel, fallbackModel } from './config.js'
+import { hasNulByte, isSafeGitRef } from './git-validation.js'
 
 // Re-export for consumers
 export { ALL_MODELS, SupportedChatModel }
@@ -34,16 +35,28 @@ export const ConsultLlmArgs = z.object({
     .object({
       repo_path: z
         .string()
+        .refine((p) => !hasNulByte(p), 'repo_path must not contain NUL bytes')
         .optional()
         .describe(
           'Path to git repository (defaults to current working directory)',
         ),
       files: z
-        .array(z.string())
+        .array(
+          z
+            .string()
+            .refine(
+              (f) => !hasNulByte(f),
+              'File paths must not contain NUL bytes',
+            ),
+        )
         .min(1, 'At least one file is required for git diff')
         .describe('Specific files to include in diff'),
       base_ref: z
         .string()
+        .refine(
+          isSafeGitRef,
+          'base_ref must be a git revision (e.g. HEAD, HEAD~3, origin/main, a SHA, main...feature) and must not start with "-"',
+        )
         .optional()
         .default('HEAD')
         .describe(
